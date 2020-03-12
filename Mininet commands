@@ -1,0 +1,72 @@
+I) Creating a topology with link properties like delay, max_queue_size,bandwidth and loss. (with controller)
+
+1. sudo mn --custom hw2_A.py --topo=mytopo --link tc,bw=10,delay=2ms,max_queue_size=1000,loss=2
+
+2. To check the IP address of a host
+h1 ifconfig
+
+3.  Bandwidth between two hosts:
+ iperf h1 h6
+ 
+ 4. In order to ebable wireshark on h1 to monitor the traffic flow between h1 and h5, the following steps were performed:
+ 
+ i)Type in xterm h1 to open a terminal specific to h1, and enable wireshark to monitor the traffic flowing from h3
+ 
+ ii) Type wireshark to start wireshark on host h3. A wireshark window should open up
+ 
+ iv) Select host “h3-eth0” from the wireshark window that opened up, and double click, this window will show the traffic from h3 to h5.
+ v) Type “h3 ping -c 3 h5” in order to check the connectivity from h3 to h5 and vice versa. 
+
+
+II) Create a topology without a controller such that hosts h1,h2,h3 are connected to switch 1 and h4,h5,h6 are connected s2. Switches s1 and s2 are connected to each other. 
+
+1) Rule to ping h1 to h6.
+sh ovs-ofctl add-flow s1 dl_src=00:00:00:00:00:01,dl_dst=00:00:00:00:00:06,actions=output:4
+ sh ovs-ofctl add-flow s1 dl_src=00:00:00:00:00:06,dl_dst=00:00:00:00:00:01,actions=output:1
+sh ovs-ofctl add-flow s2 dl_src=00:00:00:00:00:01,dl_dst=00:00:00:00:00:06,actions=output:4
+sh ovs-ofctl add-flow s2 dl_src=00:00:00:00:00:06,dl_dst=00:00:00:00:00:01,actions=output:1
+
+2) Install a rule so that all hosts can talk to each other
+
+sh ovs-ofctl add-flow s1 arp,actions=normal
+sh ovs-ofctl add-flow s2 arp,actions=normal
+
+sh ovs-ofctl add-flow s1 dl_dst=00:00:00:00:00:01,actions=output:1
+sh ovs-ofctl add-flow s1 dl_dst=00:00:00:00:00:02,actions=output:2
+sh ovs-ofctl add-flow s1 dl_dst=00:00:00:00:00:03,actions=output:3
+sh ovs-ofctl add-flow s1 dl_dst=00:00:00:00:00:04,actions=output:4
+sh ovs-ofctl add-flow s1 dl_dst=00:00:00:00:00:05,actions=output:4
+sh ovs-ofctl add-flow s1 dl_dst=00:00:00:00:00:06,actions=output:4
+
+sh ovs-ofctl add-flow s2 dl_dst=00:00:00:00:00:01,actions=output:1
+sh ovs-ofctl add-flow s2 dl_dst=00:00:00:00:00:02,actions=output:1
+sh ovs-ofctl add-flow s2 dl_dst=00:00:00:00:00:03,actions=output:1
+sh ovs-ofctl add-flow s2 dl_dst=00:00:00:00:00:04,actions=output:2
+sh ovs-ofctl add-flow s2 dl_dst=00:00:00:00:00:05,actions=output:3
+sh ovs-ofctl add-flow s2 dl_dst=00:00:00:00:00:06,actions=output:4
+
+3) Install a rule to ensure that all packets delivered to h5 are droppped:
+
+i) Assign a lower priority to all hosts except h5:
+  sh ovs-ofctl add-flow s1 priority=100,dl_dst=00:00:00:00:00:01,actions=output:1
+  sh ovs-ofctl add-flow s1 priority=100,dl_dst=00:00:00:00:00:02,actions=output:2
+  sh ovs-ofctl add-flow s1 priority=100,dl_dst=00:00:00:00:00:03,actions=output:3
+  sh ovs-ofctl add-flow s1 priority=100,dl_dst=00:00:00:00:00:04,actions=output:4
+  sh ovs-ofctl add-flow s1 priority=100,dl_dst=00:00:00:00:00:05,actions=output:4
+  sh ovs-ofctl add-flow s1 priority=100,dl_dst=00:00:00:00:00:06,actions=output:4
+
+  sh ovs-ofctl add-flow s2 priority=100,dl_dst=00:00:00:00:00:01,actions=output:1
+  sh ovs-ofctl add-flow s2 priority=100,dl_dst=00:00:00:00:00:02,actions=output:1
+  sh ovs-ofctl add-flow s2 priority=100,dl_dst=00:00:00:00:00:03,actions=output:1
+  sh ovs-ofctl add-flow s2 priority=100,dl_dst=00:00:00:00:00:04,actions=output:2
+  sh ovs-ofctl add-flow s2 priority=100,dl_dst=00:00:00:00:00:05,actions=output:3
+  sh ovs-ofctl add-flow s2 priority=100,dl_dst=00:00:00:00:00:06,actions=output:4
+ 
+ii) Assign a higher priority to h5 and put the action as drop so that all packets to h5 are dropped.
+	sh ovs-ofctl add-flow s2 priority=900,dl_dst=00:00:00:00:00:05,actions=drop
+
+4) Write a rule in order to make H6 as a webserver that allows only HTTP traffic to be delivered to it.
+  h6 python -m SimpleHTTPServer 80 &
+  sh ovs-ofctl add-flow s2 tcp,tp_dst=80,nw_dst=10.0.0.6,actions=output:4
+  h1 wget -O - h6
+
